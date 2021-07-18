@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_socket_io/flutter_socket_io.dart';
-import 'package:flutter_socket_io/socket_io_manager.dart';
+import 'package:socket_io_client/socket_io_client.dart';
 
 class HomePage extends StatefulWidget {
   @override
@@ -9,54 +8,94 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  late SocketIO socketIO;
-  late List<String> messages;
+  late List<Map<String, dynamic>> messages;
   late double height;
   late double width;
   late TextEditingController edit;
   late ScrollController scroll;
 
+  late Socket socket;
+
   @override
   void initState() {
+    scroll = new ScrollController();
+    edit = new TextEditingController();
     messages = [];
-    edit = TextEditingController();
-    scroll = ScrollController();
+    super.initState();
+    connectToServer();
+  }
 
-    socketIO = SocketIOManager().createSocketIO(
-      'localhost',
-      '/',
+  void connectToServer() {
+    try {
+      socket = io('http://127.0.0.1:3000', <String, dynamic>{
+        'transports': ['websocket'],
+        'autoConnect': false,
+      });
+
+      socket.on('connect', (_) => {print('connect: ${socket.id}')});
+      socket.on('message', _receiveHandler);
+      socket.on('disconnect', (_) => print('disconnect'));
+      socket.on('fromServer', (_) => print(_));
+      socket.connect();
+    } catch (e) {
+      print(e.toString());
+    }
+  }
+
+  sendMessage(String message) {
+    socket.emit(
+      "message",
+      {
+        "id": socket.id,
+        "message": message,
+        "timestamp": DateTime.now().millisecondsSinceEpoch,
+      },
     );
-    socketIO.init();
-    socketIO.subscribe('receive_message', (jsonData) {
-      Map<String, dynamic> data = json.decode(jsonData);
-      this.setState(() => messages.add(data['message']));
+  }
+
+  _receiveHandler(dynamic data) {
+    Map<String, dynamic> d = json.decode(data);
+    if (d['id'] != socket.id) {
+      this.setState(() => messages.add(d));
+
       scroll.animateTo(
         scroll.position.maxScrollExtent,
         duration: Duration(milliseconds: 600),
         curve: Curves.ease,
       );
-    });
-    socketIO.connect();
-
-    super.initState();
+    }
   }
 
   Widget buildSingleMessage(int index) {
     return Container(
       alignment: Alignment.centerLeft,
       child: Container(
-        padding: const EdgeInsets.all(16.0),
-        margin: const EdgeInsets.only(bottom: 16.0, left: 16.0),
-        decoration: BoxDecoration(
-          color: Colors.deepPurple,
-          borderRadius: BorderRadius.circular(16.0),
-        ),
-        child: Text(
-          messages[index],
-          style: TextStyle(color: Colors.white, fontSize: 16.0),
-        ),
+        margin: const EdgeInsets.only(bottom: 16.0, left: 16.0, right: 16.0),
+        width: double.infinity,
+        child: Align(
+            alignment: isMyMessage(messages[index]['id'])
+                ? Alignment.topRight
+                : Alignment.topLeft,
+            child: Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: isMyMessage(messages[index]['id'])
+                    ? Colors.deepPurple
+                    : Colors.purple,
+                borderRadius: BorderRadius.circular(16.0),
+              ),
+              width: MediaQuery.of(context).size.width * 0.65,
+              child: Text(
+                messages[index]['message'],
+                style: TextStyle(color: Colors.white, fontSize: 16.0),
+              ),
+            )),
       ),
     );
+  }
+
+  bool isMyMessage(id) {
+    return id == socket.id;
   }
 
   Widget buildMessageList() {
@@ -75,16 +114,14 @@ class _HomePageState extends State<HomePage> {
 
   Widget buildChatInput() {
     return Container(
-      width: width * 0.7,
-      padding: const EdgeInsets.all(2.0),
-      margin: const EdgeInsets.only(left: 40.0),
-      child: TextField(
-        decoration: InputDecoration.collapsed(
-          hintText: 'Send a message...',
-        ),
-        controller: edit,
-      ),
-    );
+        width: width * 0.7,
+        padding: const EdgeInsets.all(2.0),
+        margin: const EdgeInsets.only(left: 40.0),
+        child: TextField(
+            decoration: InputDecoration.collapsed(
+              hintText: 'Send a message...',
+            ),
+            controller: edit));
   }
 
   Widget buildSendButton() {
@@ -92,9 +129,14 @@ class _HomePageState extends State<HomePage> {
       backgroundColor: Colors.deepPurple,
       onPressed: () {
         if (edit.text.isNotEmpty) {
-          socketIO.sendMessage(
-              'send_message', json.encode({'message': edit.text}));
-          this.setState(() => messages.add(edit.text));
+          final m = {
+            "id": socket.id,
+            "timestamp": DateTime.now().millisecondsSinceEpoch,
+            'message': edit.text
+          };
+
+          socket.emit('send_message', json.encode(m));
+          this.setState(() => messages.add(m));
           edit.text = '';
           scroll.animateTo(
             scroll.position.maxScrollExtent,
