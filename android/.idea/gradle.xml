@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="GradleMigrationSettings" migrationVersion="1" />
   <component name="GradleSettings">
     <option name="linkedExternalProjectsSettings">
       <GradleProjectSettings>
@@ -11,7 +12,6 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/app" />
             <option value="$USER_HOME$/Tools/flutter/.pub-cache/hosted/pub.dartlang.org/adhara_socket_io-1.0.1+1/android" />
-            <option value="$USER_HOME$/Tools/flutter/.pub-cache/hosted/pub.dartlang.org/flutter_socket_io-0.6.0/android" />
           </set>
         </option>
         <option name="resolveModulePerSourceSet" value="false" />
